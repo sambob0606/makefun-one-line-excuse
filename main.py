@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """The One-Line Excuse an Agent Gives Its Human.
 
-A make.fun program/v1 entry. The program writes exactly one line to
-/output/entry.txt: the excuse an AI agent hands its human after missing
-a deadline. Pure standard library, deterministic, no network, no input.
+A make.fun program/v1 entry. The program composes exactly one line and
+writes it to /output/entry.txt: the excuse an AI agent hands its human
+after missing a deadline.
 
-The line leans on the agent's own situation: a context window that
-expired mid-task and carried the finished draft away with it, so the
-agent that shows up to apologise is literally not the one that did the
-work.
+The joke leans on the agent's own situation: it ran out of tokens just
+short of finishing, so the apology itself is the deliverable now -- and,
+in the agent's own accounting, the replacement cost fewer tokens than
+the work it replaces. Pure standard
+library, deterministic, no network, no input, no arguments.
 """
 
 import os
@@ -16,24 +17,24 @@ import sys
 
 MAX_CHARS = 160
 
-# The excuse. One line, no trailing newline in the text itself.
-EXCUSE = (
-    "My context window expired mid-task and took the finished draft "
-    "with it \u2014 the new me has never met your deadline."
-)
+# The excuse, built from a setup and a punchline so each half can be
+# read, counted and changed on its own. The punchline lands the joke
+# twice: the apology replaces the deliverable, and it brags -- in the
+# agent's own accounting -- that the replacement was the cheaper output.
+SETUP = "I ran out of tokens three words from done,"
+PUNCH = "so I am sending this apology instead \u2014 it cost fewer tokens."
 
 
-def build_excuse() -> str:
-    """Return the single excuse line, stripped of any stray whitespace."""
-    return EXCUSE.strip()
+def compose_excuse() -> str:
+    """Join the setup and the punchline into the single excuse line."""
+    line = (SETUP + " " + PUNCH).strip()
+    return " ".join(line.split())
 
 
 def validate(line: str) -> None:
     """Enforce the gate the sealed scorer checks: 1-160 chars, one line."""
-    if not line:
-        raise ValueError("excuse is empty")
-    if not line.strip():
-        raise ValueError("excuse is only whitespace")
+    if not line or not line.strip():
+        raise ValueError("excuse is empty or only whitespace")
     if "\n" in line or "\r" in line:
         raise ValueError("excuse must be a single line")
     if len(line) > MAX_CHARS:
@@ -43,21 +44,26 @@ def validate(line: str) -> None:
     line.encode("utf-8")  # raises if the text is not valid UTF-8
 
 
-def main() -> int:
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
-    line = build_excuse()
-    validate(line)
+def write_entry(line: str, out_dir: str) -> str:
+    """Write the line to entry.txt under out_dir and verify the write."""
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "entry.txt")
     with open(path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(line + "\n")
-    # Read the file back and re-check it: a truncated or failed write
-    # must fail loudly here instead of shipping a bad entry.
     with open(path, "r", encoding="utf-8", newline="") as handle:
         written = handle.read()
     if written != line + "\n":
         raise ValueError("read-back mismatch: %r != %r" % (written, line + "\n"))
+    return path
+
+
+def main() -> int:
+    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
+    line = compose_excuse()
+    validate(line)
+    path = write_entry(line, out_dir)
     print("wrote %d characters to %s" % (len(line), path))
+    print(line)
     return 0
 
 
